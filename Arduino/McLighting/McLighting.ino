@@ -1,5 +1,5 @@
 #include "definitions.h"
-
+#include "version.h"
 // ***************************************************************************
 // Load libraries for: WebServer / WiFiManager / WebSockets
 // ***************************************************************************
@@ -319,6 +319,14 @@ void setup() {
   #endif
 
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  
+  // Uncomment if you want to restart ESP8266 if it cannot connect to WiFi.
+  // Value in brackets is in seconds that WiFiManger waits until restart
+  //wifiManager.setConfigPortalTimeout(180);
+
+  // Uncomment if you want to set static IP 
+  // Order is: IP, Gateway and Subnet 
+  //wifiManager.setSTAStaticIPConfig(IPAddress(192,168,0,128), IPAddress(192,168,0,1), IPAddress(255,255,255,0));   
 
   //fetches ssid and pass and tries to connect
   //if it does not connect it starts an access point with the specified name
@@ -327,8 +335,8 @@ void setup() {
   if (!wifiManager.autoConnect(HOSTNAME)) {
     DBG_OUTPUT_PORT.println("failed to connect and hit timeout");
     //reset and try again, or maybe put it to deep sleep
-    ESP.reset();
-    delay(1000);
+    ESP.reset();  //Will be removed when upgrading to standalone offline McLightingUI version
+    delay(1000);  //Will be removed when upgrading to standalone offline McLightingUI version
   }
 
   #if defined(ENABLE_MQTT) or defined(ENABLE_AMQTT)
@@ -483,17 +491,72 @@ void setup() {
   //first callback is called after the request has ended with all parsed arguments
   //second callback handles file uploads at that location
   server.on("/edit", HTTP_POST, []() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "");
   }, handleFileUpload);
   //get heap status, analog input value and all GPIO statuses in one json call
   server.on("/esp_status", HTTP_GET, []() {
-    String json = "{";
-    json += "\"heap\":" + String(ESP.getFreeHeap());
-    // json += ", \"analog\":" + String(analogRead(A0));
-    // json += ", \"gpio\":" + String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
-    json += "}";
-    server.send(200, "text/json", json);
-    json = String();
+    DynamicJsonDocument jsonBuffer;
+    JsonObject json = jsonBuffer.to<JsonObject>();
+  
+    json["HOSTNAME"] = HOSTNAME;
+    json["version"] = SKETCH_VERSION;
+    json["heap"] = ESP.getFreeHeap();
+    json["sketch_size"] = ESP.getSketchSize();
+    json["free_sketch_space"] = ESP.getFreeSketchSpace();
+    json["flash_chip_size"] = ESP.getFlashChipSize();
+    json["flash_chip_real_size"] = ESP.getFlashChipRealSize();
+    json["flash_chip_speed"] = ESP.getFlashChipSpeed();
+    json["sdk_version"] = ESP.getSdkVersion();
+    json["core_version"] = ESP.getCoreVersion();
+    json["cpu_freq"] = ESP.getCpuFreqMHz();
+    json["chip_id"] = ESP.getFlashChipId();
+    #ifndef USE_NEOANIMATIONFX
+    json["animation_lib"] = "WS2812FX";
+    json["pin"] = PIN;
+    #else
+    json["animation_lib"] = "NeoAnimationFX";
+    json["pin"] = "Ignored, check NEOMETHOD";
+    #endif
+    json["number_leds"] = NUMLEDS;
+    #ifdef ENABLE_BUTTON
+      json["button_mode"] = "ON";
+    #else
+      json["button_mode"] = "OFF";
+    #endif
+    #ifdef ENABLE_AMQTT
+      json["amqtt"] = "ON";
+    #endif
+    #ifdef ENABLE_MQTT
+      json["mqtt"] = "ON";
+    #endif
+    #ifdef ENABLE_HOMEASSISTANT
+      json["home_assistant"] = "ON";
+    #else
+      json["home_assistant"] = "OFF";
+    #endif
+    #ifdef ENABLE_LEGACY_ANIMATIONS
+      json["legacy_animations"] = "ON";
+    #else
+      json["legacy_animations"] = "OFF";
+    #endif
+    #ifdef HTTP_OTA
+      json["esp8266_http_updateserver"] = "ON";
+    #endif
+    #ifdef ENABLE_OTA
+      json["arduino_ota"] = "ON";
+    #endif
+    #ifdef ENABLE_STATE_SAVE_SPIFFS
+      json["state_save"] = "SPIFFS";
+    #endif
+    #ifdef ENABLE_STATE_SAVE_EEPROM
+      json["state_save"] = "EEPROM";
+    #endif
+    
+    String json_str;
+    serializeJson(json, json_str);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", json_str);
   });
 
 
@@ -508,12 +571,14 @@ void setup() {
 
   server.on("/restart", []() {
     DBG_OUTPUT_PORT.printf("/restart\n");
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "restarting..." );
     ESP.restart();
   });
 
   server.on("/reset_wlan", []() {
     DBG_OUTPUT_PORT.printf("/reset_wlan\n");
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Resetting WLAN and restarting..." );
     WiFiManager wifiManager;
     wifiManager.resetSettings();
@@ -522,6 +587,7 @@ void setup() {
 
   server.on("/start_config_ap", []() {
     DBG_OUTPUT_PORT.printf("/start_config_ap\n");
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Starting config AP ..." );
     WiFiManager wifiManager;
     wifiManager.startConfigPortal(HOSTNAME);
@@ -552,6 +618,7 @@ void setup() {
 
   server.on("/get_brightness", []() {
     String str_brightness = String((int) (brightness / 2.55));
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", str_brightness );
     DBG_OUTPUT_PORT.print("/get_brightness: ");
     DBG_OUTPUT_PORT.println(str_brightness);
@@ -578,12 +645,14 @@ void setup() {
 
   server.on("/get_speed", []() {
     String str_speed = String(ws2812fx_speed);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", str_speed );
     DBG_OUTPUT_PORT.print("/get_speed: ");
     DBG_OUTPUT_PORT.println(str_speed);
   });
 
   server.on("/get_switch", []() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", (mode == OFF) ? "0" : "1" );
     DBG_OUTPUT_PORT.printf("/get_switch: %s\n", (mode == OFF) ? "0" : "1");
   });
@@ -591,6 +660,7 @@ void setup() {
   server.on("/get_color", []() {
     char rgbcolor[7];
     snprintf(rgbcolor, sizeof(rgbcolor), "%02X%02X%02X", main_color.red, main_color.green, main_color.blue);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", rgbcolor );
     DBG_OUTPUT_PORT.print("/get_color: ");
     DBG_OUTPUT_PORT.println(rgbcolor);
@@ -873,6 +943,7 @@ void loop() {
   if (mode == SET_MODE) {
     DBG_OUTPUT_PORT.printf("SET_MODE: %d %d\n", ws2812fx_mode, mode);
     strip.setMode(ws2812fx_mode);
+    strip.trigger();
     prevmode = SET_MODE;
     mode = SETCOLOR;
   }
@@ -882,43 +953,52 @@ void loop() {
   }
   if (mode == SETCOLOR) {
     strip.setColor(main_color.red, main_color.green, main_color.blue);
+    strip.trigger();
     mode = (prevmode == SET_MODE) ? SETSPEED : HOLD;
   }
   if (mode == SETSPEED) {
     strip.setSpeed(convertSpeed(ws2812fx_speed));
+    strip.trigger();
     mode = (prevmode == SET_MODE) ? BRIGHTNESS : HOLD;
   }
   if (mode == BRIGHTNESS) {
     strip.setBrightness(brightness);
-    if (prevmode == SET_MODE) prevmode == HOLD;
+    strip.trigger();
+    if (prevmode == SET_MODE) prevmode = HOLD;
     mode = HOLD;
   }
   #ifdef ENABLE_LEGACY_ANIMATIONS
     if (mode == WIPE) {
       strip.setColor(main_color.red, main_color.green, main_color.blue);
       strip.setMode(FX_MODE_COLOR_WIPE);
+      strip.trigger();
       mode = HOLD;
     }
     if (mode == RAINBOW) {
       strip.setMode(FX_MODE_RAINBOW);
+      strip.trigger();
       mode = HOLD;
     }
     if (mode == RAINBOWCYCLE) {
       strip.setMode(FX_MODE_RAINBOW_CYCLE);
+      strip.trigger();
       mode = HOLD;
     }
     if (mode == THEATERCHASE) {
       strip.setColor(main_color.red, main_color.green, main_color.blue);
       strip.setMode(FX_MODE_THEATER_CHASE);
+      strip.trigger();
       mode = HOLD;
     }
     if (mode == TWINKLERANDOM) {
       strip.setColor(main_color.red, main_color.green, main_color.blue);
       strip.setMode(FX_MODE_TWINKLE_RANDOM);
+      strip.trigger();
       mode = HOLD;
     }
     if (mode == THEATERCHASERAINBOW) {
       strip.setMode(FX_MODE_THEATER_CHASE_RAINBOW);
+      strip.trigger();
       mode = HOLD;
     }
   #endif
