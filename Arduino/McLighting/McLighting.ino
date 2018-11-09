@@ -82,9 +82,9 @@ NeoAnimationFX<NEOMETHOD> strip(neoStrip);
 // NEOMETHOD NeoPBBRGB400 uses RGB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 
 // Uses Pin D4 / GPIO2 (Only pin that is supported, due to hardware limitations)
-// NEOMETHOD NeoPBBGRBU800 uses GRB config 800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+// NEOMETHOD NeoPBBGRBU800 uses GRB ctream (most NeoPixel products w/WS2812 LEDs)
 // NEOMETHOD NeoPBBGRBU400 uses GRB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-// NEOMETHOD NeoPBBRGBU800 uses RGB config 800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+// NEOMETHOD NeoPBBRGBU800 uses RGB config 800 KHz onfig 800 KHz bitsbitstream (most NeoPixel products w/WS2812 LEDs)
 // NEOMETHOD NeoPBBRGBU400 uses RGB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 
 #endif
@@ -224,6 +224,49 @@ void saveConfigCallback () {
   #include "colormodes.h"
 #endif
 
+#include <Wire.h>
+
+#define CMD_SET_ADDR 0x0
+#define CMD_EN_Vx 0x1
+#define CMD_DIS_Vx 0x2
+#define CMD_ENTER_HBW 0x3
+#define DATA_NONE 0x0
+
+#define BUILD_CMD(x,y) ((x << 4) | (y & 0xF))
+
+void sendCmd(int slave, int data) {
+  Wire.beginTransmission(slave);  // transmit to device
+  Wire.write(data);        
+  Wire.endTransmission();     // stop transmitting
+}
+
+void sendConfigure(int slave, int addr) {
+  sendCmd(slave, BUILD_CMD(CMD_SET_ADDR, addr));
+}
+
+void sendEnRail(int slave, int rail) {
+  sendCmd(slave, BUILD_CMD(CMD_EN_Vx, rail));
+}
+
+void sendDisRail(int slave, int rail) {
+  sendCmd(slave, BUILD_CMD(CMD_DIS_Vx, rail));
+}
+
+void sendEnHBW(int slave) {
+  sendCmd(slave, BUILD_CMD(CMD_ENTER_HBW, DATA_NONE));
+}
+
+//busted-ish
+void ret2cmd(int slave) {
+  Wire.requestFrom(slave, 1);
+  delay(1);
+
+  while(Wire.available()) { // slave may send less than requested
+    int i = Wire.read();   // receive a byte as character
+    Serial.print(i, HEX);        // print the character
+  }
+}
+
 // ***************************************************************************
 // MAIN
 // ***************************************************************************
@@ -232,6 +275,8 @@ void setup() {
 
   DBG_OUTPUT_PORT.begin(115200);
   EEPROM.begin(512);
+
+  //Wire.begin();
 
   // set builtin led pin as output
   pinMode(BUILTIN_LED, OUTPUT);
@@ -264,6 +309,16 @@ void setup() {
   // ***************************************************************************
   // Setup: Neopixel
   // ***************************************************************************
+  //Serial.println("Testing!!!");
+  
+  Wire.begin();
+  delay(1);
+  ret2cmd(0x10);
+  delay(10);
+  sendConfigure(0x7F, 0x10);
+  delay(50);
+  sendEnHBW(0x10);
+  
   strip.init();
   strip.setBrightness(brightness);
   strip.setSpeed(convertSpeed(ws2812fx_speed));

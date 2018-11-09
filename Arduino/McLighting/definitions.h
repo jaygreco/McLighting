@@ -3,11 +3,11 @@
 
 // Neopixel
 #define PIN D1           // PIN (14 / D5) where neopixel / WS2811 strip is attached
-#define NUMLEDS 24       // Number of leds in the strip
+#define NUMLEDS 1       // Number of leds in the strip
 #define BUILTIN_LED 2    // ESP-12F has the built in LED on GPIO2, see https://github.com/esp8266/Arduino/issues/2192
 #define BUTTON 4         // Input pin (4 / D2) for switching the LED strip on / off, connect this PIN to ground to trigger button.
 
-const char HOSTNAME[] = "McLighting01";   // Friedly hostname
+const char HOSTNAME[] = "LightPaneA1";   // Friedly hostname
 
 #define HTTP_OTA             // If defined, enable ESP8266HTTPUpdateServer OTA code.
 //#define ENABLE_OTA         // If defined, enable Arduino OTA code.
@@ -31,7 +31,7 @@ const char HOSTNAME[] = "McLighting01";   // Friedly hostname
 #error "To use HA, you have to either enable PubCubClient or AsyncMQTT"
 #endif
 #if ( !defined(ENABLE_HOMEASSISTANT) and defined(MQTT_HOME_ASSISTANT_SUPPORT) )
-#error "To use HA support, you have to either enable Homeassistant component"
+#error "To use HA support, you have to enable Homeassistant component"
 #endif
 
 // parameters for automatically cycling favorite patterns
