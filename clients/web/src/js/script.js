@@ -3,7 +3,6 @@ $(function(){
 	  
 	// Settings
 	var host = window.location.hostname;
-	//host = "esp8266_02.local";
 
 	var ws_url = 'ws://' + host + ':81';
 	var connection;

@@ -87,7 +87,7 @@ NeoAnimationFX<NEOMETHOD> strip(neoStrip);
 // NEOMETHOD NeoPBBRGBU800 uses RGB config 800 KHz onfig 800 KHz bitsbitstream (most NeoPixel products w/WS2812 LEDs)
 // NEOMETHOD NeoPBBRGBU400 uses RGB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 
-#endif
+#endif //USE_NEOANIMATIONFX
 
 #ifdef USE_WS2812FX
 // ***************************************************************************
@@ -309,7 +309,8 @@ void setup() {
   // ***************************************************************************
   // Setup: Neopixel
   // ***************************************************************************
-  //Serial.println("Testing!!!");
+  Serial.print("MAC: ");
+  Serial.println(WiFi.macAddress());
   
   Wire.begin();
   delay(1);
