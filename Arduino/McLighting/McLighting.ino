@@ -76,32 +76,6 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
 #endif
 
-#ifdef USE_NEOANIMATIONFX
-// ***************************************************************************
-// Load libraries / Instanciate NeoAnimationFX library
-// ***************************************************************************
-// https://github.com/debsahu/NeoAnimationFX
-#include <NeoAnimationFX.h>
-#define NEOMETHOD NeoPBBGRB800
-
-NEOMETHOD neoStrip(NUMLEDS);
-NeoAnimationFX<NEOMETHOD> strip(neoStrip);
-
-// Uses Pin RX / GPIO3 (Only pin that is supported, due to hardware limitations)
-// NEOMETHOD NeoPBBGRB800 uses GRB config 800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-// NEOMETHOD NeoPBBGRB400 uses GRB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-// NEOMETHOD NeoPBBRGB800 uses RGB config 800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-// NEOMETHOD NeoPBBRGB400 uses RGB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-
-// Uses Pin D4 / GPIO2 (Only pin that is supported, due to hardware limitations)
-// NEOMETHOD NeoPBBGRBU800 uses GRB ctream (most NeoPixel products w/WS2812 LEDs)
-// NEOMETHOD NeoPBBGRBU400 uses GRB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-// NEOMETHOD NeoPBBRGBU800 uses RGB config 800 KHz onfig 800 KHz bitsbitstream (most NeoPixel products w/WS2812 LEDs)
-// NEOMETHOD NeoPBBRGBU400 uses RGB config 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-
-#endif //USE_NEOANIMATIONFX
-
-#ifdef USE_WS2812FX
 // ***************************************************************************
 // Load libraries / Instanciate WS2812FX library
 // ***************************************************************************
@@ -257,49 +231,6 @@ void saveConfigCallback () {
   #include "colormodes.h"
 #endif
 
-#include <Wire.h>
-
-#define CMD_SET_ADDR 0x0
-#define CMD_EN_Vx 0x1
-#define CMD_DIS_Vx 0x2
-#define CMD_ENTER_HBW 0x3
-#define DATA_NONE 0x0
-
-#define BUILD_CMD(x,y) ((x << 4) | (y & 0xF))
-
-void sendCmd(int slave, int data) {
-  Wire.beginTransmission(slave);  // transmit to device
-  Wire.write(data);        
-  Wire.endTransmission();     // stop transmitting
-}
-
-void sendConfigure(int slave, int addr) {
-  sendCmd(slave, BUILD_CMD(CMD_SET_ADDR, addr));
-}
-
-void sendEnRail(int slave, int rail) {
-  sendCmd(slave, BUILD_CMD(CMD_EN_Vx, rail));
-}
-
-void sendDisRail(int slave, int rail) {
-  sendCmd(slave, BUILD_CMD(CMD_DIS_Vx, rail));
-}
-
-void sendEnHBW(int slave) {
-  sendCmd(slave, BUILD_CMD(CMD_ENTER_HBW, DATA_NONE));
-}
-
-//busted-ish
-void ret2cmd(int slave) {
-  Wire.requestFrom(slave, 1);
-  delay(1);
-
-  while(Wire.available()) { // slave may send less than requested
-    int i = Wire.read();   // receive a byte as character
-    Serial.print(i, HEX);        // print the character
-  }
-}
-
 // ***************************************************************************
 // MAIN
 // ***************************************************************************
@@ -308,8 +239,6 @@ void setup() {
 
   DBG_OUTPUT_PORT.begin(115200);
   EEPROM.begin(512);
-
-  //Wire.begin();
 
   // set builtin led pin as output
   pinMode(BUILTIN_LED, OUTPUT);
@@ -342,17 +271,6 @@ void setup() {
   // ***************************************************************************
   // Setup: Neopixel
   // ***************************************************************************
-  Serial.print("MAC: ");
-  Serial.println(WiFi.macAddress());
-  
-  Wire.begin();
-  delay(1);
-  ret2cmd(0x10);
-  delay(10);
-  sendConfigure(0x7F, 0x10);
-  delay(50);
-  sendEnHBW(0x10);
-  
   strip.init();
   #if defined(USE_WS2812FX_DMA) or defined(USE_WS2812FX_UART)
     dma.Initialize();
@@ -703,7 +621,7 @@ void setup() {
   // ***************************************************************************
   server.on("/set_brightness", []() {
     getArgs();
-	mode = BRIGHTNESS;
+  mode = BRIGHTNESS;
     #ifdef ENABLE_MQTT
     mqtt_client.publish(mqtt_outtopic, String(String("OK %") + String(brightness)).c_str());
     #endif

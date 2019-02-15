@@ -10,15 +10,15 @@
 
 const char HOSTNAME[] = "JAYSDESK";   // Friedly hostname
 
-#define HTTP_OTA             // If defined, enable ESP8266HTTPUpdateServer OTA code.
-//#define ENABLE_OTA         // If defined, enable Arduino OTA code.
-#define ENABLE_AMQTT         // If defined, enable Async MQTT code, see: https://github.com/marvinroger/async-mqtt-client
+//#define HTTP_OTA             // If defined, enable ESP8266HTTPUpdateServer OTA code.
+#define ENABLE_OTA         // If defined, enable Arduino OTA code.
+//#define ENABLE_AMQTT         // If defined, enable Async MQTT code, see: https://github.com/marvinroger/async-mqtt-client
 //#define ENABLE_MQTT        // If defined, enable MQTT client code, see: https://github.com/toblum/McLighting/wiki/MQTT-API
-#define ENABLE_HOMEASSISTANT // If defined, enable Homeassistant integration, ENABLE_MQTT or ENABLE_AMQTT must be active
-#define ENABLE_BUTTON        // If defined, enable button handling code, see: https://github.com/toblum/McLighting/wiki/Button-control
+//#define ENABLE_HOMEASSISTANT // If defined, enable Homeassistant integration, ENABLE_MQTT or ENABLE_AMQTT must be active
+//#define ENABLE_BUTTON        // If defined, enable button handling code, see: https://github.com/toblum/McLighting/wiki/Button-control
 //#define MQTT_HOME_ASSISTANT_SUPPORT // If defined, use AMQTT and select Tools -> IwIP Variant -> Higher Bandwidth
 #define ENABLE_LEGACY_ANIMATIONS // Dont disbale this for now
-#define ENABLE_E131              // E1.31 implementation
+//#define ENABLE_E131              // E1.31 implementation
 
 #ifdef ENABLE_E131
   #define START_UNIVERSE 1                    // First DMX Universe to listen for
@@ -126,7 +126,7 @@ uint32_t autoParams[][4] = { // color, speed, mode, duration (seconds)
 MODE prevmode = mode;
 
 int ws2812fx_speed = 196;   // Global variable for storing the delay between color changes --> smaller == faster
-int brightness = 196;       // Global variable for storing the brightness (255 == 100%)
+int brightness = 10;       // Global variable for storing the brightness (255 == 100%)
 
 int ws2812fx_mode = 0;      // Helper variable to set WS2812FX modes
 
