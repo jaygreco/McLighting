@@ -52,6 +52,18 @@
   WiFiEventHandler wifiDisconnectHandler;
 #endif
 
+#ifdef ARDUINOJSON_VERSION
+  #if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR == 7)
+    #error "Install ArduinoJson v6.7.0-beta"
+  #endif
+#endif
+
+#ifdef ENABLE_E131
+  #include <ESPAsyncUDP.h>         //https://github.com/me-no-dev/ESPAsyncUDP
+  #include <ESPAsyncE131.h>        //https://github.com/forkineye/ESPAsyncE131
+  ESPAsyncE131 e131(END_UNIVERSE - START_UNIVERSE + 1);
+#endif
+
 
 // ***************************************************************************
 // Instanciate HTTP(80) / WebSockets(81) Server
@@ -109,6 +121,27 @@ WS2812FX strip = WS2812FX(NUMLEDS, PIN, NEO_GRB + NEO_KHZ800);
 // pixel power leads, add 300 - 500 Ohm resistor on first pixel's data input
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
+
+#ifdef USE_WS2812FX_DMA // Uses GPIO3/RXD0/RX, more info: https://github.com/Makuna/NeoPixelBus/wiki/ESP8266-NeoMethods
+  #include <NeoPixelBus.h>
+  NeoEsp8266Dma800KbpsMethod dma = NeoEsp8266Dma800KbpsMethod(NUMLEDS, 3);  //800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+  //NeoEsp8266Dma400KbpsMethod dma = NeoEsp8266Dma400KbpsMethod(NUMLEDS, 3);  //400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+#endif
+#ifdef USE_WS2812FX_UART1 // Uses UART1: GPIO1/TXD0/TX, more info: https://github.com/Makuna/NeoPixelBus/wiki/ESP8266-NeoMethods
+  #include <NeoPixelBus.h>
+  NeoEsp8266Uart0800KbpsMethod dma = NeoEsp8266Uart0800KbpsMethod(NUMLEDS, 3);
+#endif
+#ifdef USE_WS2812FX_UART2 // Uses UART2: GPIO2/TXD1/D4, more info: https://github.com/Makuna/NeoPixelBus/wiki/ESP8266-NeoMethods
+  #include <NeoPixelBus.h>
+  NeoEsp8266Uart1800KbpsMethod dma = NeoEsp8266Uart1800KbpsMethod(NUMLEDS, 3);
+#endif
+#if defined(USE_WS2812FX_DMA) or defined(USE_WS2812FX_UART)
+  void DMA_Show(void) {
+    if(dma.IsReadyToUpdate()) {
+      memcpy(dma.getPixels(), strip.getPixels(), dma.getPixelsSize());
+      dma.Update();
+    }
+  }
 #endif
 
 // ***************************************************************************
@@ -321,6 +354,10 @@ void setup() {
   sendEnHBW(0x10);
   
   strip.init();
+  #if defined(USE_WS2812FX_DMA) or defined(USE_WS2812FX_UART)
+    dma.Initialize();
+    strip.setCustomShow(DMA_Show);
+  #endif
   strip.setBrightness(brightness);
   strip.setSpeed(convertSpeed(ws2812fx_speed));
   //strip.setMode(FX_MODE_RAINBOW_CYCLE);
@@ -378,11 +415,15 @@ void setup() {
   
   // Uncomment if you want to restart ESP8266 if it cannot connect to WiFi.
   // Value in brackets is in seconds that WiFiManger waits until restart
-  //wifiManager.setConfigPortalTimeout(180);
+  #ifdef WIFIMGR_PORTAL_TIMEOUT
+  wifiManager.setConfigPortalTimeout(WIFIMGR_PORTAL_TIMEOUT);
+  #endif
 
   // Uncomment if you want to set static IP 
   // Order is: IP, Gateway and Subnet 
-  //wifiManager.setSTAStaticIPConfig(IPAddress(192,168,0,128), IPAddress(192,168,0,1), IPAddress(255,255,255,0));   
+  #ifdef WIFIMGR_SET_MANUAL_IP
+  wifiManager.setSTAStaticIPConfig(IPAddress(_ip[0], _ip[1], _ip[2], _ip[3]), IPAddress(_gw[0], _gw[1], _gw[2], _gw[3]), IPAddress(_sn[0], _sn[1], _sn[2], _sn[3]));
+  #endif
 
   //fetches ssid and pass and tries to connect
   //if it does not connect it starts an access point with the specified name
@@ -476,6 +517,10 @@ void setup() {
   // ***************************************************************************
   // Configure MQTT
   // ***************************************************************************
+  #ifdef ENABLE_MQTT_HOSTNAME_CHIPID
+    snprintf(mqtt_clientid, 64, "%s-%08X", HOSTNAME, ESP.getChipId());
+  #endif
+
   #ifdef ENABLE_MQTT
     if (mqtt_host != "" && atoi(mqtt_port) > 0) {
       snprintf(mqtt_intopic, sizeof mqtt_intopic, "%s/in", HOSTNAME);
@@ -567,12 +612,15 @@ void setup() {
     json["core_version"] = ESP.getCoreVersion();
     json["cpu_freq"] = ESP.getCpuFreqMHz();
     json["chip_id"] = ESP.getFlashChipId();
-    #ifndef USE_NEOANIMATIONFX
-    json["animation_lib"] = "WS2812FX";
-    json["pin"] = PIN;
+    #if defined(USE_WS2812FX_DMA)
+      json["animation_lib"] = "WS2812FX_DMA";
+      json["pin"] = 3;
+    #elif defined(USE_WS2812FX_UART)
+      json["animation_lib"] = "WS2812FX_UART";
+      json["pin"] = 2;
     #else
-    json["animation_lib"] = "NeoAnimationFX";
-    json["pin"] = "Ignored, check NEOMETHOD";
+      json["animation_lib"] = "WS2812FX";
+      json["pin"] = PIN;
     #endif
     json["number_leds"] = NUMLEDS;
     #ifdef ENABLE_BUTTON
@@ -884,6 +932,26 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
+
+    #ifdef ENABLE_E131
+    server.on("/e131", []() {
+      exit_func = true;
+      mode = E131;
+      getStatusJSON();
+      #ifdef ENABLE_MQTT
+      mqtt_client.publish(mqtt_outtopic, String("OK =e131").c_str());
+      #endif
+      #ifdef ENABLE_AMQTT
+      amqttClient.publish(mqtt_outtopic.c_str(), qospub, false, String("OK =131").c_str());
+      #endif
+      #ifdef ENABLE_HOMEASSISTANT
+        stateOn = true;
+      #endif
+      #ifdef ENABLE_STATE_SAVE_SPIFFS
+        if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
+      #endif
+    });
+    #endif
   
     server.on("/tv", []() {
       exit_func = true;
@@ -939,6 +1007,15 @@ void setup() {
   if (mdns_result) {
     MDNS.addService("http", "tcp", 80);
   }
+
+  #ifdef ENABLE_E131
+  // Choose one to begin listening for E1.31 data
+  // if (e131.begin(E131_UNICAST))                             // Listen via Unicast
+  if (e131.begin(E131_MULTICAST, START_UNIVERSE, END_UNIVERSE)) // Listen via Multicast
+      Serial.println(F("Listening for data..."));
+  else
+      Serial.println(F("*** e131.begin failed ***"));
+  #endif
   #ifdef ENABLE_STATE_SAVE_SPIFFS
     (readStateFS()) ? DBG_OUTPUT_PORT.println(" Success!") : DBG_OUTPUT_PORT.println(" Failure!");
   #endif
@@ -1057,6 +1134,11 @@ void loop() {
       strip.trigger();
       mode = HOLD;
     }
+    #ifdef ENABLE_E131
+    if (mode == E131) {
+      handleE131();
+    }
+    #endif
   #endif
   if (mode == HOLD || mode == CUSTOM) {
     if(!strip.isRunning()) strip.start();
@@ -1065,6 +1147,7 @@ void loop() {
         exit_func = false;
       }
     #endif
+    if (prevmode == SET_MODE) prevmode = HOLD;
   }
   #ifdef ENABLE_LEGACY_ANIMATIONS
     if (mode == TV) {
